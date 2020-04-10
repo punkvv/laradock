@@ -56,6 +56,8 @@ RUN if [ ${CHANGE_SOURCE} = true ]; then \
 
 # always run apt update when start and after add new source list, then clean up at end.
 RUN set -xe; \
+    # 加速 ppa 源
+    find /etc/apt/sources.list.d/ -type f -name "ondrej-ubuntu-php-xenial.list" -exec  sed  -i.bak -r  's#deb(-src)?\s*http(s)?://ppa.launchpad.net#deb\1 https\2://launchpad.proxy.ustclug.org#ig' {} \; && \
     apt-get update -yqq && \
     pecl channel-update pecl.php.net && \
     groupadd -g ${PGID} laradock && \
@@ -347,9 +349,14 @@ USER root
 
 ARG INSTALL_XDEBUG=false
 
+COPY ./package/php-xdebug_2.9.2.deb /tmp/php-xdebug_2.9.2.deb
+
+
 RUN if [ ${INSTALL_XDEBUG} = true ]; then \
     # Load the xdebug extension only with phpunit commands
-    apt-get install -y php${LARADOCK_PHP_VERSION}-xdebug && \
+    # apt-get install -y php${LARADOCK_PHP_VERSION}-xdebug && \
+    dpkg -i /tmp/php-xdebug_2.9.2.deb && \
+    rm -rf /tmp/php-xdebug_2.9.2.deb && \
     sed -i 's/^;//g' /etc/php/${LARADOCK_PHP_VERSION}/cli/conf.d/20-xdebug.ini \
 ;fi
 
@@ -510,9 +517,13 @@ RUN if [ ${INSTALL_GEARMAN} = true ]; then \
 
 ARG INSTALL_PHPREDIS=false
 
+COPY ./package/php-redis_5.1.1.deb /tmp/php-redis_5.1.1.deb
+
 RUN if [ ${INSTALL_PHPREDIS} = true ]; then \
-    apt-get update -yqq && \
-    apt-get install -yqq php-redis \
+    # apt-get update -yqq && \
+    # apt-get install -yqq php-redis \
+    dpkg -i /tmp/php-redis_5.1.1.deb && \
+    rm -rf /tmp/php-redis_5.1.1.deb \
 ;fi
 
 ###########################################################################
@@ -520,6 +531,8 @@ RUN if [ ${INSTALL_PHPREDIS} = true ]; then \
 ###########################################################################
 
 ARG INSTALL_SWOOLE=false
+
+COPY ./package/swoole-src-4.4.17.tar.gz /tmp/
 
 RUN if [ ${INSTALL_SWOOLE} = true ]; then \
     # Install Php Swoole Extension
@@ -529,7 +542,26 @@ RUN if [ ${INSTALL_SWOOLE} = true ]; then \
       if [ $(php -r "echo PHP_MINOR_VERSION;") = "0" ]; then \
         pecl install swoole-2.2.0; \
       else \
-        pecl install swoole; \
+        # pecl install swoole; \
+        tar xvfz /tmp/swoole-src-4.4.17.tar.gz && \
+        mv swoole-src* swoole-src && \
+        cd swoole-src && \
+        phpize && \
+        ./configure && \
+        make && make install &&\
+        rm -rf /tmp/swoole-src-4.4.17.tar.gz; \
+#          mkdir -p ~/build && \
+#          cd ~/build && \
+#          rm -rf ./swoole-src && \
+#          curl -o ./tmp/swoole.tar.gz https://github.com/swoole/swoole-src/archive/v4.4.17.tar.gz -L && \
+#          tar zxvf ./tmp/swoole.tar.gz && \
+#          mv swoole-src* swoole-src && \
+#          cd swoole-src && \
+#          phpize && \
+#          ./configure \
+#          --enable-openssl  \
+#          --enable-http2 && \
+#          make && sudo make install; \
       fi \
     fi && \
     echo "extension=swoole.so" >> /etc/php/${LARADOCK_PHP_VERSION}/mods-available/swoole.ini && \
@@ -584,9 +616,17 @@ ARG INSTALL_AST=false
 ARG AST_VERSION=1.0.3
 ENV AST_VERSION ${AST_VERSION}
 
+COPY ./package/ast-1.0.6.tgz /tmp/ast-1.0.6.tgz
+
 RUN if [ ${INSTALL_AST} = true ]; then \
     # Install AST extension
-    printf "\n" | pecl -q install ast-${AST_VERSION} && \
+    # printf "\n" | pecl -q install ast-${AST_VERSION} && \
+    printf "\n" | tar xvfz /tmp/ast-1.0.6.tgz && \
+    cd ast-1.0.6 && \
+    phpize && \
+    ./configure && \
+    make && make install && \
+    rm -rf /tmp/ast-1.0.6.tgz && \
     echo "extension=ast.so" >> /etc/php/${LARADOCK_PHP_VERSION}/mods-available/ast.ini && \
     phpenmod -v ${LARADOCK_PHP_VERSION} -s cli ast \
 ;fi
@@ -654,10 +694,13 @@ ENV NVM_DIR /home/laradock/.nvm
 ARG NVM_NODEJS_ORG_MIRROR
 ENV NVM_NODEJS_ORG_MIRROR ${NVM_NODEJS_ORG_MIRROR}
 
+COPY ./nvm-install.sh /tmp/nvm-install.sh
+
 RUN if [ ${INSTALL_NODE} = true ]; then \
     # Install nvm (A Node Version Manager)
     mkdir -p $NVM_DIR && \
-    curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash \
+    # curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash \
+    /bin/sh -c /tmp/nvm-install.sh \
         && . $NVM_DIR/nvm.sh \
         && nvm install ${NODE_VERSION} \
         && nvm use ${NODE_VERSION} \
@@ -1295,6 +1338,20 @@ RUN if [ ${INSTALL_GIT_PROMPT} = true ]; then \
     rm /tmp/git-prompt \
 ;fi
 
+
+###
+# net-tools
+###
+
+RUN apt-get install -y net-tools
+
+###
+# telnet
+###
+
+RUN apt-get install -y telnet
+
+
 ###########################################################################
 # Check PHP version:
 ###########################################################################
@@ -1316,3 +1373,5 @@ RUN apt-get clean && \
 
 # Set default work directory
 WORKDIR /var/www
+
+EXPOSE 1215

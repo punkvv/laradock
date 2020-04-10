@@ -184,6 +184,8 @@ RUN if [ ${INSTALL_PG_CLIENT} = true ]; then \
 
 ARG INSTALL_XDEBUG=false
 
+COPY ./package/xdebug-2.9.2.tgz /tmp/xdebug-2.9.2.tgz
+
 RUN if [ ${INSTALL_XDEBUG} = true ]; then \
   # Install the xdebug extension
   if [ $(php -r "echo PHP_MAJOR_VERSION;") = "5" ]; then \
@@ -192,7 +194,13 @@ RUN if [ ${INSTALL_XDEBUG} = true ]; then \
     if [ $(php -r "echo PHP_MINOR_VERSION;") = "0" ]; then \
       pecl install xdebug-2.9.0; \
     else \
-      pecl install xdebug; \
+      # pecl install xdebug; \
+      tar xvfz /tmp/xdebug-2.9.2.tgz && \
+      cd xdebug-2.9.2 && \
+      phpize && \
+      ./configure && \
+      make && make install && \
+      rm -rf /tmp/xdebug-2.9.2.tgz; \
     fi \
   fi && \
   docker-php-ext-enable xdebug \
@@ -253,13 +261,21 @@ RUN if [ ${INSTALL_XDEBUG} = false -a ${INSTALL_BLACKFIRE} = true ]; then \
 
 ARG INSTALL_PHPREDIS=false
 
+COPY ./package/redis-5.2.0.tgz /tmp/redis-5.2.0.tgz
+
 RUN if [ ${INSTALL_PHPREDIS} = true ]; then \
     # Install Php Redis Extension
     if [ $(php -r "echo PHP_MAJOR_VERSION;") = "5" ]; then \
       pecl install -o -f redis-4.3.0; \
     else \
-      pecl install -o -f redis; \
-    fi \
+     # pecl install -o -f redis; \
+     tar xvfz /tmp/redis-5.2.0.tgz && \
+     cd redis-5.2.0 && \
+     phpize && \
+     ./configure && \
+     make && make install && \
+     rm -rf /tmp/redis-5.2.0.tgz \
+    ;fi \
     && rm -rf /tmp/pear \
     && docker-php-ext-enable redis \
 ;fi
@@ -667,9 +683,17 @@ USER root
 
 ARG INSTALL_IMAGEMAGICK=false
 
+COPY ./package/imagick-3.4.4.tgz /tmp/imagick-3.4.4.tgz
+
 RUN if [ ${INSTALL_IMAGEMAGICK} = true ]; then \
     apt-get install -y libmagickwand-dev imagemagick && \
-    pecl install imagick && \
+    # pecl install imagick && \
+    tar xvfz /tmp/imagick-3.4.4.tgz && \
+    cd imagick-3.4.4 && \
+    phpize && \
+    ./configure && \
+    make && make install && \
+    rm -rf /tmp/imagick-3.4.4.tgz && \
     docker-php-ext-enable imagick \
 ;fi
 
